@@ -47,8 +47,18 @@ log = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 #  BOT
 # ─────────────────────────────────────────────
+if BOT_TOKEN:
+    masked_token = BOT_TOKEN[:5] + "..." + BOT_TOKEN[-5:]
+    log.info(f"Bot token yuklandi: {masked_token}")
+else:
+    log.error("BOT_TOKEN TOPILMADI!")
+
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
+
+@dp.message(Command("ping"))
+async def ping(message: types.Message):
+    await message.answer("pong! Men tirikman ✅")
 
 # ─────────────────────────────────────────────
 #  MA'LUMOTLAR BAZASI
@@ -502,12 +512,21 @@ async def handle_link(message: types.Message):
 # ─────────────────────────────────────────────
 async def main():
     if not BOT_TOKEN:
-        log.error("Bot ishga tushmadi: Token yo'q.")
+        log.error("Bot ishga tushmadi: Token yo'q. Render'da INSTA_BOT_TOKEN ni tekshiring.")
         return
-    await db_init()
-    log.info("Instagram + YouTube + TikTok bot ishga tushdi!")
-    await dp.start_polling(bot)
-
+    try:
+        await db_init()
+        log.info("Instagram + YouTube + TikTok bot ishga tushdi!")
+        # Delete webhook before polling to avoid conflicts
+        await bot.delete_webhook(drop_pending_updates=True)
+        await dp.start_polling(bot)
+    except Exception as e:
+        log.critical(f"Bot ishga tushishida xatolik: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        log.info("Bot to'xtatildi.")
+    except Exception as e:
+        log.error(f"Kutilmagan xatolik: {e}")
