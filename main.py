@@ -16,6 +16,8 @@ from aiogram.types import (
     ReplyKeyboardRemove, CallbackQuery
 )
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
 # ─────────────────────────────────────────────
 #  SOZLAMALAR
@@ -520,9 +522,25 @@ async def handle_link(message: types.Message):
 
 
 # ─────────────────────────────────────────────
+#  KEEP-ALIVE SERVER (Render uchun)
+# ─────────────────────────────────────────────
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# ─────────────────────────────────────────────
 #  MAIN
 # ─────────────────────────────────────────────
 async def main():
+    # Flask serverni alohida oqimda ishga tushirish
+    Thread(target=run_flask).start()
+    
     if not BOT_TOKEN:
         log.error("Bot ishga tushmadi: Token yo'q. Render'da INSTA_BOT_TOKEN ni tekshiring.")
         return
