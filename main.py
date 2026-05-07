@@ -216,11 +216,21 @@ async def download_ytdlp(url: str, output_path: Path) -> Path | None:
     ydl_opts = {
         "outtmpl": str(output_path.with_suffix("")) + ".%(ext)s",
         "format": "best[ext=mp4][filesize<50M]/best[ext=mp4]/best",
-        "quiet": False,
-        "no_warnings": False,
-        "logger": log,
+        "quiet": True,
+        "no_warnings": True,
         "noplaylist": True,
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
+        # Bir nechta klientlardan foydalanish (android, ios, web_embedded) blokdan o'tishga yordam beradi
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "android", "web_embedded"],
+                "skip": ["dash", "hls"]
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-us,en;q=0.5",
+        }
     }
 
     # Agar cookies.txt mavjud bo'lsa, ishlatish
@@ -259,7 +269,9 @@ async def download_cobalt(url: str) -> Path | None:
     payload = {
         "url": url,
         "videoQuality": "720",
-        "filenameStyle": "pretty"
+        "filenameStyle": "classic",
+        "isAudioOnly": False,
+        "downloadMode": "auto"
     }
 
     try:
