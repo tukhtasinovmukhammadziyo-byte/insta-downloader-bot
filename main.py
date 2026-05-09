@@ -316,54 +316,48 @@ async def download_cobalt(url: str) -> Path | None:
 
 async def download_music(query: str) -> Path | None:
     """
-    YouTube dan musiqa qidirish va yuklash.
+    YouTube dan qidirib, Cobalt orqali audio yuklab olish.
     """
-    filename = f"music_{datetime.now().timestamp()}"
-    output_path = DOWNLOAD_DIR / filename
-    
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'outtmpl': str(output_path) + '.%(ext)s',
-        'quiet': False,
-        'no_warnings': False,
-        'noplaylist': True,
-        'nocheckcertificate': True,
-        'default_search': 'ytsearch',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web_embedded'],
-            }
-        }
-    }
-
     try:
+        # 1. YouTube dan linkni topish (yuklamasdan)
+        ydl_opts = {'quiet': True, 'noplaylist': True}
         loop = asyncio.get_event_loop()
-        def _dl():
+        def _get_url():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch1:{query}", download=True)
-                if 'entries' in info:
-                    info = info['entries'][0]
-                return info
+                info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+                if 'entries' in info and info['entries']:
+                    return info['entries'][0]['webpage_url']
+                return None
         
-        await loop.run_in_executor(None, _dl)
+        yt_url = await loop.run_in_executor(None, _get_url)
+        if not yt_url: return None
 
-        # Qidirib ko'ramiz
-        final_path = output_path.with_suffix(".mp3")
-        if final_path.exists():
-            return final_path
-        
-        # Agar mp3 bo'lmasa, boshqa formatlarni tekshiramiz
-        for ext in [".m4a", ".webm", ".opus"]:
-            p = output_path.with_suffix(ext)
-            if p.exists(): return p
-            
+        # 2. Cobalt orqali audio yuklash
+        api_url = "https://api.cobalt.tools/"
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {
+            "url": yt_url,
+            "isAudioOnly": True,
+            "audioFormat": "mp3",
+            "downloadMode": "auto"
+        }
+
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    stream_url = data.get("url")
+                    if stream_url:
+                        filename = f"music_{datetime.now().timestamp()}.mp3"
+                        file_path = DOWNLOAD_DIR / filename
+                        async with session.get(stream_url) as file_resp:
+                            if file_resp.status == 200:
+                                with open(file_path, "wb") as f:
+                                    f.write(await file_resp.read())
+                                return file_path
     except Exception as e:
-        log.error(f"Musiqa yuklashda xatolik: {e}")
+        log.error(f"Musiqa (Cobalt) xatolik: {e}")
     return None
 
 
