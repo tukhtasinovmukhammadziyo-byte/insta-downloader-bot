@@ -496,14 +496,13 @@ async def handle_link(message: types.Message):
             return
         if text == "ℹ️ Yordam":
             await message.answer(
-                "ℹ️ <b>Qo'llanma</b>\n\n"
-                "Menga shunchaki video linkini yuboring:\n\n"
-                "📸 <b>Instagram:</b>\n"
-                "<code>https://instagram.com/reel/XXX</code>\n\n"
-                "▶️ <b>YouTube:</b>\n"
-                "<code>https://youtube.com/watch?v=XXX</code>\n\n"
-                "🎵 <b>TikTok:</b>\n"
-                "<code>https://tiktok.com/@user/video/XXX</code>\n\n"
+                "ℹ️ <b>Yordam va Bog'lanish</b>\n\n"
+                "Menga shunchaki video linkini yuboring yoki qo'shiq nomini yozing.\n\n"
+                f"👤 <b>Admin:</b> {ADMIN_USERNAME}\n"
+                f"📞 <b>Tel:</b> {ADMIN_PHONE}\n\n"
+                "📸 <b>Instagram:</b> Reel / Post\n"
+                "▶️ <b>YouTube:</b> Video / Shorts / Music\n"
+                "🎵 <b>TikTok:</b> Video\n\n"
                 "📌 <b>Eslatma:</b> 50MB dan katta videolar yuklanmaydi.",
                 parse_mode="HTML", reply_markup=MAIN_KB
             )
