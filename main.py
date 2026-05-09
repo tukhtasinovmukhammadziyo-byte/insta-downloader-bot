@@ -329,10 +329,11 @@ async def download_music(query: str) -> Path | None:
             'preferredquality': '192',
         }],
         'outtmpl': str(output_path) + '.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
         'noplaylist': True,
         'nocheckcertificate': True,
+        'default_search': 'ytsearch',
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'ios', 'web_embedded'],
@@ -344,13 +345,23 @@ async def download_music(query: str) -> Path | None:
         loop = asyncio.get_event_loop()
         def _dl():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                search_query = f"ytsearch1:{query}"
-                ydl.download([search_query])
+                info = ydl.extract_info(f"ytsearch1:{query}", download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                return info
+        
         await loop.run_in_executor(None, _dl)
 
+        # Qidirib ko'ramiz
         final_path = output_path.with_suffix(".mp3")
         if final_path.exists():
             return final_path
+        
+        # Agar mp3 bo'lmasa, boshqa formatlarni tekshiramiz
+        for ext in [".m4a", ".webm", ".opus"]:
+            p = output_path.with_suffix(ext)
+            if p.exists(): return p
+            
     except Exception as e:
         log.error(f"Musiqa yuklashda xatolik: {e}")
     return None
