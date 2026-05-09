@@ -65,6 +65,18 @@ dp  = Dispatcher()
 async def ping(message: types.Message):
     await message.answer("pong! Men tirikman ✅")
 
+@dp.message(Command("test_yt"))
+async def test_yt(message: types.Message):
+    await message.answer("YouTube tekshirilmoqda...")
+    try:
+        ydl_opts = {'quiet': True, 'noplaylist': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info("ytsearch1:test", download=False)
+            title = info['entries'][0]['title']
+            await message.answer(f"✅ YouTube ulandi! Topilgan video: {title}")
+    except Exception as e:
+        await message.answer(f"❌ YouTube xatosi: {str(e)[:100]}")
+
 # ─────────────────────────────────────────────
 #  MA'LUMOTLAR BAZASI
 # ─────────────────────────────────────────────
@@ -508,12 +520,14 @@ async def handle_link(message: types.Message):
         # Agar link bo'lmasa, musiqa deb qidiramiz
         if message.chat.type == "private":
             wait_msg = await message.reply(f"🔍 <b>'{text}'</b> qidirilmoqda...", parse_mode="HTML")
-            audio_url = await download_music(text)
-            
-            if audio_url:
-                await send_audio(message, audio_url, text)
-            else:
-                await message.reply("❌ Hech narsa topilmadi yoki yuklashda xatolik yuz berdi.")
+            try:
+                audio_url = await download_music(text)
+                if audio_url:
+                    await send_audio(message, audio_url, text)
+                else:
+                    await message.reply("❌ Hech narsa topilmadi.")
+            except Exception as e:
+                await message.reply(f"❌ Xatolik yuz berdi: {str(e)[:50]}")
             
             try:
                 await bot.delete_message(message.chat.id, wait_msg.message_id)
