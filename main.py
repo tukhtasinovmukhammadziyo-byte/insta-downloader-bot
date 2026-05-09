@@ -26,8 +26,8 @@ load_dotenv()
 BOT_TOKEN  = os.getenv("INSTA_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 IG_USERNAME = os.getenv("IG_USERNAME")
 IG_PASSWORD = os.getenv("IG_PASSWORD")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@admin")
-ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+998")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@Shadowstrike777")
+ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+998907677622")
 
 
 if not BOT_TOKEN:
@@ -332,9 +332,10 @@ async def download_music(query: str) -> Path | None:
         'quiet': True,
         'no_warnings': True,
         'noplaylist': True,
+        'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'web_embedded'],
+                'player_client': ['android', 'ios', 'web_embedded'],
             }
         }
     }
