@@ -26,6 +26,9 @@ load_dotenv()
 BOT_TOKEN  = os.getenv("INSTA_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 IG_USERNAME = os.getenv("IG_USERNAME")
 IG_PASSWORD = os.getenv("IG_PASSWORD")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@admin")
+ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+998")
+
 
 if not BOT_TOKEN:
     raise ValueError(".env faylida TELEGRAM_BOT_TOKEN yo'q!")
@@ -155,6 +158,9 @@ MAIN_KB = ReplyKeyboardMarkup(
         [
             KeyboardButton(text="📊 Statistikam"),
             KeyboardButton(text="ℹ️ Yordam"),
+        ],
+        [
+            KeyboardButton(text="Tozalash 🗑️"),
         ],
     ],
     resize_keyboard=True,      # Tugmalarni kichikroq qiladi
@@ -308,9 +314,61 @@ async def download_cobalt(url: str) -> Path | None:
     return None
 
 
+async def download_music(query: str) -> Path | None:
+    """
+    YouTube dan musiqa qidirish va yuklash.
+    """
+    filename = f"music_{datetime.now().timestamp()}"
+    output_path = DOWNLOAD_DIR / filename
+    
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'outtmpl': str(output_path) + '.%(ext)s',
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'web_embedded'],
+            }
+        }
+    }
+
+    try:
+        loop = asyncio.get_event_loop()
+        def _dl():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                search_query = f"ytsearch1:{query}"
+                ydl.download([search_query])
+        await loop.run_in_executor(None, _dl)
+
+        final_path = output_path.with_suffix(".mp3")
+        if final_path.exists():
+            return final_path
+    except Exception as e:
+        log.error(f"Musiqa yuklashda xatolik: {e}")
+    return None
+
+
 # ─────────────────────────────────────────────
 #  UNIVERSAL YUKLASH YORDAMCHISI
 # ─────────────────────────────────────────────
+async def send_audio(message: types.Message, audio_path: Path, title: str):
+    try:
+        await message.reply_audio(
+            audio=FSInputFile(str(audio_path)),
+            caption=f"🎵 <b>{title}</b>\n\n✅ Tayyor!",
+            parse_mode="HTML"
+        )
+        await db_save_download(message.from_user.id, "Music", title, "ok")
+    except Exception as e:
+        log.error(f"Audio yuborishda xatolik: {e}")
+        await message.reply("❌ Audio yuborishda xatolik yuz berdi.")
 async def send_video(message: types.Message, video_path: Path, url: str, platform: str):
     try:
         await message.reply_video(
@@ -364,15 +422,13 @@ async def cmd_stats(message: types.Message):
 async def cmd_help(message: types.Message):
     log.info(f"Help buyrug'i: (User: {message.from_user.id})")
     await message.answer(
-        "ℹ️ <b>Qo'llanma</b>\n\n"
-        "Menga shunchaki video linkini yuboring:\n\n"
-        "📸 <b>Instagram:</b>\n"
-        "<code>https://instagram.com/reel/XXX</code>\n\n"
-        "▶️ <b>YouTube:</b>\n"
-        "<code>https://youtube.com/watch?v=XXX</code>\n"
-        "<code>https://youtu.be/XXX</code>\n\n"
-        "🎵 <b>TikTok:</b>\n"
-        "<code>https://tiktok.com/@user/video/XXX</code>\n\n"
+        "ℹ️ <b>Yordam va Bog'lanish</b>\n\n"
+        "Menga shunchaki video linkini yuboring yoki qo'shiq nomini yozing.\n\n"
+        f"👤 <b>Admin:</b> {ADMIN_USERNAME}\n"
+        f"📞 <b>Tel:</b> {ADMIN_PHONE}\n\n"
+        "📸 <b>Instagram:</b> Reel / Post\n"
+        "▶️ <b>YouTube:</b> Video / Shorts / Music\n"
+        "🎵 <b>TikTok:</b> Video\n\n"
         "📌 <b>Eslatma:</b> 50MB dan katta videolar yuklanmaydi.",
         parse_mode="HTML",
         reply_markup=MAIN_KB
@@ -399,14 +455,14 @@ async def cb_stats(call: CallbackQuery):
 async def cb_help(call: CallbackQuery):
     await call.answer()
     await call.message.answer(
-        "ℹ️ <b>Qo'llanma</b>\n\n"
-        "Menga shunchaki video linkini yuboring:\n\n"
-        "📸 <b>Instagram:</b>\n"
-        "<code>https://instagram.com/reel/XXX</code>\n\n"
-        "▶️ <b>YouTube:</b>\n"
-        "<code>https://youtube.com/watch?v=XXX</code>\n\n"
-        "🎵 <b>TikTok:</b>\n"
-        "<code>https://tiktok.com/@user/video/XXX</code>",
+        "ℹ️ <b>Yordam va Bog'lanish</b>\n\n"
+        "Menga shunchaki video linkini yuboring yoki qo'shiq nomini yozing.\n\n"
+        f"👤 <b>Admin:</b> {ADMIN_USERNAME}\n"
+        f"📞 <b>Tel:</b> {ADMIN_PHONE}\n\n"
+        "📸 <b>Instagram:</b> Reel / Post\n"
+        "▶️ <b>YouTube:</b> Video / Shorts / Music\n"
+        "🎵 <b>TikTok:</b> Video\n\n"
+        "📌 <b>Eslatma:</b> 50MB dan katta videolar yuklanmaydi.",
         parse_mode="HTML"
     )
 
@@ -452,12 +508,29 @@ async def handle_link(message: types.Message):
                 parse_mode="HTML", reply_markup=MAIN_KB
             )
             return
+        if text == "Tozalash 🗑️":
+            await message.answer("⏳ Chat tozalanmoqda...")
+            for i in range(message.message_id, message.message_id - 100, -1):
+                try:
+                    await bot.delete_message(message.chat.id, i)
+                except:
+                    continue
+            return
+        
+        # Agar link bo'lmasa, musiqa deb qidiramiz
         if message.chat.type == "private":
-            await message.answer(
-                "❌ Link tanilmadi.\n"
-                "Instagram, YouTube yoki TikTok linki yuboring.",
-                reply_markup=MAIN_KB
-            )
+            wait_msg = await message.reply(f"🔍 <b>'{text}'</b> qidirilmoqda...", parse_mode="HTML")
+            audio_path = await download_music(text)
+            
+            if audio_path and audio_path.exists():
+                await send_audio(message, audio_path, text)
+                audio_path.unlink(missing_ok=True)
+            else:
+                await message.reply("❌ Hech narsa topilmadi yoki yuklashda xatolik yuz berdi.")
+            
+            try:
+                await bot.delete_message(message.chat.id, wait_msg.message_id)
+            except: pass
         return
 
     wait_msg = await message.reply("⏳ Video yuklanmoqda, kuting...")
