@@ -389,8 +389,7 @@ async def send_video(message: types.Message, video_path: Path, url: str, platfor
         kb_list = []
         if platform == "Instagram" and shortcode:
             kb_list.append([
-                InlineKeyboardButton(text="🎵 MP3 yuklash", callback_data=f"dl_mp3:ig:{shortcode}"),
-                InlineKeyboardButton(text="🎥 Video", callback_data=f"dl_vid:ig:{shortcode}")
+                InlineKeyboardButton(text="🎵 MP3 yuklash", callback_data=f"dl_mp3:ig:{shortcode}")
             ])
         elif platform == "YouTube":
             # YouTube uchun url ni qisqartirib yuboramiz (faqat ID)
@@ -503,13 +502,13 @@ async def cb_help(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("dl_"))
 async def cb_download_more(call: CallbackQuery):
     data = call.data.split(":")
-    action = data[0] # dl_mp3 yoki dl_vid
+    action = data[0] # dl_mp3
     platform = data[1] # ig yoki yt
     identifier = data[2] # shortcode yoki id
     
     url = ""
     if platform == "ig":
-        url = f"https://www.instagram.com/reel/{identifier}/"
+        url = f"https://www.instagram.com/reels/{identifier}/"
     elif platform == "yt":
         url = f"https://www.youtube.com/watch?v={identifier}"
     
@@ -518,22 +517,32 @@ async def cb_download_more(call: CallbackQuery):
     
     try:
         if action == "dl_mp3":
-            # download_music URL bilan ham ishlaydi
-            audio_url = await download_music(url)
-            if audio_url:
-                await send_audio(call.message, audio_url, f"{platform.upper()} Audio")
+            if platform == "yt":
+                audio_url = await download_music(url)
+                if audio_url:
+                    await send_audio(call.message, audio_url, "YouTube Audio")
+                else:
+                    await call.message.answer("❌ Audioni yuklab bo'lmadi.")
             else:
-                await call.message.answer("❌ Audioni yuklab bo'lmadi.")
-        
-        elif action == "dl_vid":
-            video_path = await download_cobalt(url)
-            if video_path and video_path.exists():
-                await call.message.reply_video(FSInputFile(str(video_path)), caption="✅ Mana video!")
-                video_path.unlink(missing_ok=True)
-            else:
-                await call.message.answer("❌ Videoni yuklab bo'lmadi.")
+                # Instagram uchun Cobalt isAudioOnly ishlatamiz
+                api_url = "https://api.cobalt.tools/"
+                headers = {"Accept": "application/json", "Content-Type": "application/json"}
+                payload = {"url": url, "isAudioOnly": True, "downloadMode": "auto"}
+                
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(api_url, json=payload, headers=headers) as resp:
+                        if resp.status == 200:
+                            d = await resp.json()
+                            s_url = d.get("url")
+                            if s_url:
+                                await send_audio(call.message, s_url, "Instagram Audio")
+                            else:
+                                await call.message.answer("❌ Audio linki topilmadi.")
+                        else:
+                            await call.message.answer("❌ Cobalt API xatosi.")
     except Exception as e:
-        log.error(f"Callback download error: {e}")
+        log.error(f"Callback error: {e}")
         await call.message.answer("❌ Xatolik yuz berdi.")
         
     try:
