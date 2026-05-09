@@ -13,7 +13,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     FSInputFile, ReplyKeyboardMarkup, KeyboardButton,
-    ReplyKeyboardRemove, CallbackQuery
+    ReplyKeyboardRemove, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 )
 from dotenv import load_dotenv
 from flask import Flask
@@ -383,9 +383,28 @@ async def send_audio(message: types.Message, audio_url: str, title: str):
         await message.reply("❌ Audioni yuborishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.")
 async def send_video(message: types.Message, video_path: Path, url: str, platform: str):
     try:
+        # Inline tugmalar qo'shish
+        shortcode = get_insta_shortcode(url) if platform == "Instagram" else None
+        
+        kb_list = []
+        if platform == "Instagram" and shortcode:
+            kb_list.append([
+                InlineKeyboardButton(text="🎵 MP3 yuklash", callback_data=f"dl_mp3:ig:{shortcode}"),
+                InlineKeyboardButton(text="🎥 Video", callback_data=f"dl_vid:ig:{shortcode}")
+            ])
+        elif platform == "YouTube":
+            # YouTube uchun url ni qisqartirib yuboramiz (faqat ID)
+            video_id = url.split("v=")[-1].split("&")[0] if "v=" in url else url.split("/")[-1]
+            kb_list.append([
+                InlineKeyboardButton(text="🎵 MP3 yuklash", callback_data=f"dl_mp3:yt:{video_id}")
+            ])
+
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=kb_list) if kb_list else None
+
         await message.reply_video(
             video=FSInputFile(str(video_path)),
             caption=f"✅ Mana! ({platform})",
+            reply_markup=reply_markup
         )
         await db_save_download(message.from_user.id, platform, url, "ok")
         log.info(f"{platform} video yuborildi → user {message.from_user.id}")
@@ -481,6 +500,46 @@ async def cb_help(call: CallbackQuery):
 
 
 # ─── Link handler ───
+@dp.callback_query(F.data.startswith("dl_"))
+async def cb_download_more(call: CallbackQuery):
+    data = call.data.split(":")
+    action = data[0] # dl_mp3 yoki dl_vid
+    platform = data[1] # ig yoki yt
+    identifier = data[2] # shortcode yoki id
+    
+    url = ""
+    if platform == "ig":
+        url = f"https://www.instagram.com/reel/{identifier}/"
+    elif platform == "yt":
+        url = f"https://www.youtube.com/watch?v={identifier}"
+    
+    await call.answer("⏳ Tayyorlanmoqda...")
+    wait_msg = await call.message.answer("⏳ Yuklanmoqda, kuting...")
+    
+    try:
+        if action == "dl_mp3":
+            # download_music URL bilan ham ishlaydi
+            audio_url = await download_music(url)
+            if audio_url:
+                await send_audio(call.message, audio_url, f"{platform.upper()} Audio")
+            else:
+                await call.message.answer("❌ Audioni yuklab bo'lmadi.")
+        
+        elif action == "dl_vid":
+            video_path = await download_cobalt(url)
+            if video_path and video_path.exists():
+                await call.message.reply_video(FSInputFile(str(video_path)), caption="✅ Mana video!")
+                video_path.unlink(missing_ok=True)
+            else:
+                await call.message.answer("❌ Videoni yuklab bo'lmadi.")
+    except Exception as e:
+        log.error(f"Callback download error: {e}")
+        await call.message.answer("❌ Xatolik yuz berdi.")
+        
+    try:
+        await bot.delete_message(call.message.chat.id, wait_msg.message_id)
+    except: pass
+
 @dp.message(F.text)
 async def handle_link(message: types.Message):
     await db_save_user(message.from_user)
