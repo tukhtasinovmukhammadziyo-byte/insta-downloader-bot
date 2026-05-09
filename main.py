@@ -518,43 +518,36 @@ async def cb_download_more(call: CallbackQuery):
     
     try:
         if action == "dl_mp3":
-            if platform == "yt":
+            # Har qanday platforma uchun to'g'ridan-to'g'ri audio linkini olish (Super Speed)
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'nocheckcertificate': True,
+                'extractor_args': {
+                    'youtube': {'player_client': ['tv', 'web']},
+                    'instagram': {'player_client': ['web']}
+                }
+            }
+            
+            # Agar bu YouTube qidiruv bo'lmasa, URL dan foydalanamiz
+            audio_url = None
+            loop = asyncio.get_event_loop()
+            
+            def _extract():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    return ydl.extract_info(url, download=False).get('url')
+            
+            try:
+                audio_url = await loop.run_in_executor(None, _extract)
+            except Exception as e:
+                log.error(f"Extraction error: {e}")
+                # Fallback: Agar URL dan extraction o'xshamasas (masalan YouTube search kerak bo'lsa)
                 audio_url = await download_music(url)
-                if audio_url:
-                    await send_audio(call.message, audio_url, "YouTube Audio")
-                else:
-                    await call.message.answer("❌ Audioni yuklab bo'lmadi.")
+
+            if audio_url:
+                await send_audio(call.message, audio_url, f"{platform.upper()} Audio")
             else:
-                # Instagram uchun Cobalt
-                api_url = "https://api.cobalt.tools/"
-                headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "url": url,
-                    "isAudioOnly": True,
-                    "audioFormat": "mp3",
-                    "downloadMode": "auto"
-                }
-                
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(api_url, json=payload, headers=headers) as resp:
-                        if resp.status == 200:
-                            d = await resp.json()
-                            s_url = d.get("url")
-                            if s_url:
-                                await send_audio(call.message, s_url, "Instagram Audio")
-                            else:
-                                await call.message.answer("❌ Audio linki topilmadi.")
-                        else:
-                            # Agar Cobalt o'xshamasa, yt-dlp super-speed usulini qo'llaymiz
-                            audio_url = await download_music(url)
-                            if audio_url:
-                                await send_audio(call.message, audio_url, "Instagram Audio")
-                            else:
-                                await call.message.answer(f"❌ Xatolik (Status: {resp.status})")
+                await call.message.answer("❌ Audio topilmadi.")
     except Exception as e:
         log.error(f"Callback error: {e}")
         await call.message.answer("❌ Xatolik yuz berdi.")
