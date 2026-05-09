@@ -314,67 +314,50 @@ async def download_cobalt(url: str) -> Path | None:
     return None
 
 
-async def download_music(query: str) -> Path | None:
+async def download_music(query: str) -> str | None:
     """
-    YouTube dan qidirib, Cobalt orqali audio yuklab olish.
+    YouTube dan musiqa qidirib, to'g'ridan-to'g'ri audio URL sini qaytarish.
+    Bu usul eng tez va serverni yuklamaydi.
     """
     try:
-        # 1. YouTube dan linkni topish (yuklamasdan)
-        ydl_opts = {'quiet': True, 'noplaylist': True}
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'nocheckcertificate': True,
+        }
         loop = asyncio.get_event_loop()
-        def _get_url():
+        def _get_info():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch1:{query}", download=False)
                 if 'entries' in info and info['entries']:
-                    return info['entries'][0]['webpage_url']
+                    return info['entries'][0]
                 return None
         
-        yt_url = await loop.run_in_executor(None, _get_url)
-        if not yt_url: return None
-
-        # 2. Cobalt orqali audio yuklash
-        api_url = "https://api.cobalt.tools/"
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        payload = {
-            "url": yt_url,
-            "isAudioOnly": True,
-            "audioFormat": "mp3",
-            "downloadMode": "auto"
-        }
-
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(api_url, json=payload, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    stream_url = data.get("url")
-                    if stream_url:
-                        filename = f"music_{datetime.now().timestamp()}.mp3"
-                        file_path = DOWNLOAD_DIR / filename
-                        async with session.get(stream_url) as file_resp:
-                            if file_resp.status == 200:
-                                with open(file_path, "wb") as f:
-                                    f.write(await file_resp.read())
-                                return file_path
+        info = await loop.run_in_executor(None, _get_info)
+        if info and 'url' in info:
+            return info['url']
     except Exception as e:
-        log.error(f"Musiqa (Cobalt) xatolik: {e}")
+        log.error(f"Musiqa URL olishda xatolik: {e}")
     return None
 
 
 # ─────────────────────────────────────────────
 #  UNIVERSAL YUKLASH YORDAMCHISI
 # ─────────────────────────────────────────────
-async def send_audio(message: types.Message, audio_path: Path, title: str):
+async def send_audio(message: types.Message, audio_url: str, title: str):
     try:
+        # Telegram audio URL orqali ham fayl yubora oladi (50MB gacha)
         await message.reply_audio(
-            audio=FSInputFile(str(audio_path)),
-            caption=f"🎵 <b>{title}</b>\n\n✅ Tayyor!",
+            audio=audio_url,
+            caption=f"🎵 <b>{title}</b>\n\n✅ Tayyor! (Super Speed)",
             parse_mode="HTML"
         )
         await db_save_download(message.from_user.id, "Music", title, "ok")
     except Exception as e:
         log.error(f"Audio yuborishda xatolik: {e}")
-        await message.reply("❌ Audio yuborishda xatolik yuz berdi.")
+        # Agar URL orqali yuborish o'xshamasa, foydalanuvchiga xabar beramiz
+        await message.reply("❌ Audioni yuborishda xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.")
 async def send_video(message: types.Message, video_path: Path, url: str, platform: str):
     try:
         await message.reply_video(
@@ -525,11 +508,10 @@ async def handle_link(message: types.Message):
         # Agar link bo'lmasa, musiqa deb qidiramiz
         if message.chat.type == "private":
             wait_msg = await message.reply(f"🔍 <b>'{text}'</b> qidirilmoqda...", parse_mode="HTML")
-            audio_path = await download_music(text)
+            audio_url = await download_music(text)
             
-            if audio_path and audio_path.exists():
-                await send_audio(message, audio_path, text)
-                audio_path.unlink(missing_ok=True)
+            if audio_url:
+                await send_audio(message, audio_url, text)
             else:
                 await message.reply("❌ Hech narsa topilmadi yoki yuklashda xatolik yuz berdi.")
             
