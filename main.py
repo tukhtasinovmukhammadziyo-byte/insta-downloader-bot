@@ -22,6 +22,7 @@ from threading import Thread
 # ─────────────────────────────────────────────
 #  SOZLAMALAR
 # ─────────────────────────────────────────────
+VERSION = "2.5 (Super Speed + Cobalt)"
 load_dotenv()
 BOT_TOKEN  = os.getenv("INSTA_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 IG_USERNAME = os.getenv("IG_USERNAME")
@@ -392,10 +393,11 @@ async def start(message: types.Message):
     log.info(f"Start buyrug'i: (User: {message.from_user.id})")
     await db_save_user(message.from_user)
     await message.answer(
-        f"Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋\n\n"
+        f"Assalomu alaykum, <b>{message.from_user.full_name}</b>! 👋\n"
+        f"<i>Bot versiyasi: {VERSION}</i>\n\n"
         "📥 <b>Quyidagi platformalardan link yuboring:</b>\n"
         "• 📸 Instagram — Reel / Post\n"
-        "• ▶️ YouTube — Video / Shorts\n"
+        "• ▶️ YouTube — Video / Shorts / Music\n"
         "• 🎵 TikTok — Video\n\n"
         "Men videoni yuklab beraman!",
         parse_mode="HTML",
@@ -534,7 +536,9 @@ async def handle_link(message: types.Message):
             except: pass
         return
 
-    wait_msg = await message.reply("⏳ Video yuklanmoqda, kuting...")
+    # Linklarni tekshirish
+    if shortcode or youtube_url or tiktok_url:
+        wait_msg = await message.reply("⏳ Video yuklanmoqda, kuting...")
 
     # ── Instagram ──
     if shortcode:
