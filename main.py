@@ -22,7 +22,7 @@ from threading import Thread
 # ─────────────────────────────────────────────
 #  SOZLAMALAR
 # ─────────────────────────────────────────────
-VERSION = "2.5 (Super Speed + Cobalt)"
+VERSION = "2.6 (Anti-Block + Super Speed)"
 load_dotenv()
 BOT_TOKEN  = os.getenv("INSTA_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 IG_USERNAME = os.getenv("IG_USERNAME")
