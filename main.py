@@ -329,29 +329,39 @@ async def download_cobalt(url: str) -> Path | None:
 
 async def download_music(query: str) -> str | None:
     """
-    YouTube dan musiqa qidirib, to'g'ridan-to'g'ri audio URL sini qaytarish.
-    Bu usul eng tez va serverni yuklamaydi.
+    Invidious orqali qidirib, YouTube URL sini topish va audio URL sini qaytarish.
+    Bu YouTube blokidan o'tishning eng ishonchli usuli.
     """
     try:
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'noplaylist': True,
-            'nocheckcertificate': True,
-        }
-        loop = asyncio.get_event_loop()
-        def _get_info():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch1:{query}", download=False)
-                if 'entries' in info and info['entries']:
-                    return info['entries'][0]
-                return None
-        
-        info = await loop.run_in_executor(None, _get_info)
-        if info and 'url' in info:
-            return info['url']
+        # 1. Invidious API orqali qidirish
+        search_url = f"https://inv.tux.rs/api/v1/search?q={query}"
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(search_url, timeout=5) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data and len(data) > 0:
+                        video_id = data[0].get("videoId")
+                        if video_id:
+                            yt_url = f"https://www.youtube.com/watch?v={video_id}"
+                            
+                            # 2. Endi bu URL dan audio linkini olamiz
+                            ydl_opts = {
+                                'format': 'bestaudio/best',
+                                'quiet': True,
+                                'nocheckcertificate': True,
+                                'extractor_args': {'youtube': {'player_client': ['tv', 'web']}}
+                            }
+                            loop = asyncio.get_event_loop()
+                            def _get_info():
+                                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                    return ydl.extract_info(yt_url, download=False)
+                            
+                            info = await loop.run_in_executor(None, _get_info)
+                            if info and 'url' in info:
+                                return info['url']
     except Exception as e:
-        log.error(f"Musiqa URL olishda xatolik: {e}")
+        log.error(f"Invidious/Music xatolik: {e}")
     return None
 
 
