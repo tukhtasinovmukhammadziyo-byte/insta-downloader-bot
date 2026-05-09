@@ -508,7 +508,8 @@ async def cb_download_more(call: CallbackQuery):
     
     url = ""
     if platform == "ig":
-        url = f"https://www.instagram.com/reels/{identifier}/"
+        # Reel linkini to'g'ri tiklash
+        url = f"https://www.instagram.com/reel/{identifier}/"
     elif platform == "yt":
         url = f"https://www.youtube.com/watch?v={identifier}"
     
@@ -524,10 +525,18 @@ async def cb_download_more(call: CallbackQuery):
                 else:
                     await call.message.answer("❌ Audioni yuklab bo'lmadi.")
             else:
-                # Instagram uchun Cobalt isAudioOnly ishlatamiz
+                # Instagram uchun Cobalt
                 api_url = "https://api.cobalt.tools/"
-                headers = {"Accept": "application/json", "Content-Type": "application/json"}
-                payload = {"url": url, "isAudioOnly": True, "downloadMode": "auto"}
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "url": url,
+                    "isAudioOnly": True,
+                    "audioFormat": "mp3",
+                    "downloadMode": "auto"
+                }
                 
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
@@ -540,7 +549,12 @@ async def cb_download_more(call: CallbackQuery):
                             else:
                                 await call.message.answer("❌ Audio linki topilmadi.")
                         else:
-                            await call.message.answer("❌ Cobalt API xatosi.")
+                            # Agar Cobalt o'xshamasa, yt-dlp super-speed usulini qo'llaymiz
+                            audio_url = await download_music(url)
+                            if audio_url:
+                                await send_audio(call.message, audio_url, "Instagram Audio")
+                            else:
+                                await call.message.answer(f"❌ Xatolik (Status: {resp.status})")
     except Exception as e:
         log.error(f"Callback error: {e}")
         await call.message.answer("❌ Xatolik yuz berdi.")
